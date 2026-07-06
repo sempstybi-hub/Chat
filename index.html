@@ -3,304 +3,550 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Чат · реальное время</title>
+    <title>GitHub Chat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; }
+        
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        
+        .header { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .user-info { display: flex; align-items: center; gap: 12px; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background: #5865f2; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+        
+        .main { display: grid; grid-template-columns: 300px 1fr; gap: 20px; height: 70vh; }
+        .sidebar { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow-y: auto; }
+        .chat-area { background: white; border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        
+        .search-box { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+        
+        .chat-item { padding: 12px; cursor: pointer; border-radius: 8px; transition: background 0.2s; border-bottom: 1px solid #f0f0f0; }
+        .chat-item:hover { background: #f5f6f8; }
+        .chat-item.active { background: #e7f3ff; }
+        
+        .messages { flex: 1; padding: 20px; overflow-y: auto; }
+        .message { margin-bottom: 12px; }
+        .message.own { text-align: right; }
+        .message-bubble { display: inline-block; padding: 10px 14px; border-radius: 18px; max-width: 70%; background: #f0f2f5; }
+        .message.own .message-bubble { background: #0084ff; color: white; }
+        .message-sender { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+        .message-time { font-size: 11px; color: #65676b; margin-top: 4px; }
+        .message.own .message-time { color: rgba(255,255,255,0.7); }
+        
+        .input-area { padding: 16px; border-top: 1px solid #e4e6eb; display: flex; gap: 12px; }
+        .input-area input { flex: 1; padding: 10px 16px; border: 1px solid #ddd; border-radius: 20px; font-size: 15px; outline: none; }
+        .input-area input:focus { border-color: #0084ff; }
+        .input-area button { padding: 10px 24px; background: #0084ff; color: white; border: none; border-radius: 20px; cursor: pointer; }
+        .input-area button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        .btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; background: #5865f2; color: white; }
+        .btn-danger { background: #dc3545; }
+        .btn-success { background: #28a745; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; padding: 24px; border-radius: 12px; max-width: 500px; width: 90%; }
+        .modal-content input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 12px; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .modal-actions button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; }
+        
+        .online-status { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .online { background: #31a24c; }
+        .offline { background: #ccc; }
+        
+        .login-container { max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .login-container button { padding: 12px 32px; background: #24292e; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        .login-container button:hover { background: #1a1e22; }
+        
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 12px 24px; border-radius: 8px; display: none; }
+        .toast.show { display: block; }
+    </style>
 </head>
 <body>
     <div id="app">
-        <!-- панель входа -->
-        <div id="loginPanel">
-            <h3>Вход через GitHub</h3>
-            <button id="githubLoginBtn">🔐 Войти через GitHub</button>
-            <p id="loginStatus" style="margin-top: 0.5rem; font-family: monospace;"></p>
+        <!-- Вход -->
+        <div id="loginContainer" class="login-container">
+            <h2>💬 GitHub Chat</h2>
+            <p style="color: #65676b; margin: 16px 0;">Войдите через GitHub, чтобы начать общение</p>
+            <button onclick="loginWithGitHub()">🔐 Войти через GitHub</button>
+            <div id="loginStatus" style="margin-top: 12px; color: #dc3545;"></div>
         </div>
 
-        <!-- панель чата -->
-        <div id="chatPanel" style="display: none;">
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #ccc; padding-bottom: 4px;">
-                <span><strong>💬 Чат · реальное время</strong></span>
-                <span id="userDisplay" style="font-size: 0.9rem;"></span>
-                <button id="logoutBtn" style="font-size: 0.8rem;">🚪 выйти</button>
-            </div>
-            <div id="messageArea" style="height: 260px; overflow-y: auto; border: 1px solid #ddd; margin: 8px 0; padding: 4px; background: #fafafa; font-family: sans-serif; font-size: 0.95rem;"></div>
-            <div style="display: flex; gap: 4px;">
-                <input id="messageInput" type="text" placeholder="Введите сообщение..." style="flex: 1; padding: 6px; font-size: 1rem;">
-                <button id="sendBtn">Отправить</button>
-            </div>
-            <div style="margin-top: 4px; font-size: 0.8rem; color: #555;">
-                <span id="connectionStatus">⚡ подключение…</span>
+        <!-- Основное приложение -->
+        <div id="appContainer" style="display: none;">
+            <div class="container">
+                <div class="header">
+                    <div class="user-info">
+                        <div class="avatar" id="userAvatar">U</div>
+                        <div>
+                            <div id="userName" style="font-weight: 600;"></div>
+                            <div id="userLogin" style="font-size: 14px; color: #65676b;"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <button class="btn btn-success" onclick="createChat()">➕ Новый чат</button>
+                        <button class="btn btn-danger" onclick="logout()">🚪 Выйти</button>
+                    </div>
+                </div>
+
+                <div class="main">
+                    <!-- Боковая панель -->
+                    <div class="sidebar">
+                        <input class="search-box" id="searchInput" placeholder="🔍 Поиск чатов и пользователей..." oninput="searchUsers(this.value)">
+                        <div id="chatsList">
+                            <p style="color: #65676b; text-align: center; padding: 20px;">Нет чатов</p>
+                        </div>
+                    </div>
+
+                    <!-- Область чата -->
+                    <div class="chat-area">
+                        <div id="chatHeader" style="padding: 16px 20px; border-bottom: 1px solid #e4e6eb; font-weight: 600;">
+                            Выберите чат
+                        </div>
+                        <div class="messages" id="messagesContainer">
+                            <div style="text-align: center; color: #65676b; padding: 40px;">
+                                Выберите чат, чтобы начать общение
+                            </div>
+                        </div>
+                        <div class="input-area">
+                            <input id="messageInput" placeholder="Введите сообщение..." disabled>
+                            <button id="sendBtn" disabled onclick="sendMessage()">Отправить</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <!-- Модальное окно создания чата -->
+        <div class="modal" id="createChatModal">
+            <div class="modal-content">
+                <h3>Создать новый чат</h3>
+                <input id="chatNameInput" placeholder="Название чата">
+                <div style="margin: 12px 0;">
+                    <p style="font-size: 14px; color: #65676b;">Поиск пользователей для добавления:</p>
+                    <input id="addUserSearch" placeholder="Введите имя пользователя..." oninput="searchUsersToAdd(this.value)">
+                    <div id="searchResults" style="margin-top: 8px; max-height: 150px; overflow-y: auto;"></div>
+                </div>
+                <div id="selectedUsers" style="display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0;"></div>
+                <div class="modal-actions">
+                    <button class="cancel" onclick="closeModal()">Отмена</button>
+                    <button class="create" onclick="createNewChat()">Создать</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="toast" id="toast"></div>
     </div>
 
     <script>
-        (function() {
-            "use strict";
+        // ============================================
+        // КОНФИГУРАЦИЯ
+        // ============================================
+        // ⚠️ ЗАМЕНИТЕ НА ВАШИ ДАННЫЕ
+        const GITHUB_CLIENT_ID = 'Ov23li08IwFcWBvAZeKi';
+        const WS_URL = 'https://chat-cl0m.onrender.com'; // URL бэкенда на Render.com
+        
+        // ============================================
+        // СОСТОЯНИЕ
+        // ============================================
+        let currentUser = null;
+        let ws = null;
+        let currentChatId = null;
+        let allUsers = [];
+        let allChats = [];
+        let allMessages = [];
+        let selectedUsersToAdd = [];
 
-            // ⚠️ ЗАМЕНИТЕ НА ВАШ CLIENT ID ИЗ НАСТРОЕК GITHUB
-            const GITHUB_CLIENT_ID = 'Ov23li08IwFcWBvAZeKi';
-            const REDIRECT_URI = window.location.origin + window.location.pathname;
-            const WEBSOCKET_URL = 'wss://echo.websocket.org';
+        // ============================================
+        // АВТОРИЗАЦИЯ
+        // ============================================
+        function loginWithGitHub() {
+            const state = Math.random().toString(36).substring(2, 10);
+            sessionStorage.setItem('gh_oauth_state', state);
+            const params = new URLSearchParams({
+                client_id: GITHUB_CLIENT_ID,
+                redirect_uri: window.location.origin + window.location.pathname,
+                state: state,
+                scope: 'read:user',
+                response_type: 'token',
+            });
+            window.location.href = 'https://github.com/login/oauth/authorize?' + params.toString();
+        }
 
-            // DOM элементы
-            const loginPanel = document.getElementById('loginPanel');
-            const chatPanel = document.getElementById('chatPanel');
-            const loginBtn = document.getElementById('githubLoginBtn');
-            const logoutBtn = document.getElementById('logoutBtn');
-            const messageInput = document.getElementById('messageInput');
-            const sendBtn = document.getElementById('sendBtn');
-            const messageArea = document.getElementById('messageArea');
-            const userDisplay = document.getElementById('userDisplay');
-            const loginStatus = document.getElementById('loginStatus');
-            const connectionStatus = document.getElementById('connectionStatus');
-
-            let currentUser = null;
-            let ws = null;
-            let reconnectTimer = null;
-
-            function appendMessage(text, isSystem = false) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                if (isSystem) {
-                    div.style.color = '#4a6a8f';
-                    div.style.fontStyle = 'italic';
-                    div.style.fontSize = '0.85rem';
-                } else {
-                    div.style.margin = '2px 0';
-                    div.style.borderBottom = '1px solid #eaeaea';
-                    div.style.padding = '2px 0';
-                }
-                messageArea.appendChild(div);
-                messageArea.scrollTop = messageArea.scrollHeight;
-            }
-
-            function connectWebSocket() {
-                if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-                    return;
-                }
-
-                try {
-                    ws = new WebSocket(WEBSOCKET_URL);
-                    connectionStatus.textContent = '🔄 подключение…';
-
-                    ws.onopen = function() {
-                        connectionStatus.textContent = '✅ подключено (эхо-сервер)';
-                        if (currentUser) {
-                            ws.send(`👤 ${currentUser.login} присоединился`);
-                        }
-                        if (reconnectTimer) {
-                            clearTimeout(reconnectTimer);
-                            reconnectTimer = null;
-                        }
-                    };
-
-                    ws.onmessage = function(event) {
-                        let msg = event.data;
-                        if (msg.startsWith('👤')) {
-                            appendMessage('🔹 ' + msg.substring(2), true);
-                        } else {
-                            if (window._lastSent && msg === window._lastSent) {
-                                appendMessage('🗣️ Вы: ' + msg);
-                            } else {
-                                appendMessage('👤 другой: ' + msg);
-                            }
-                        }
-                    };
-
-                    ws.onerror = function(err) {
-                        connectionStatus.textContent = '⚠️ Ошибка WebSocket';
-                        console.warn('WS error:', err);
-                    };
-
-                    ws.onclose = function() {
-                        connectionStatus.textContent = '🔴 отключено – переподключение…';
-                        if (!reconnectTimer) {
-                            reconnectTimer = setTimeout(() => {
-                                reconnectTimer = null;
-                                if (currentUser) {
-                                    connectWebSocket();
-                                } else {
-                                    connectionStatus.textContent = '⏸️ выход';
-                                }
-                            }, 2000);
-                        }
-                    };
-                } catch (e) {
-                    connectionStatus.textContent = '❌ ошибка подключения';
-                    console.error('WebSocket init error:', e);
-                }
-            }
-
-            function disconnectWebSocket() {
-                if (ws) {
-                    try {
-                        ws.close();
-                    } catch (e) {}
-                    ws = null;
-                }
-                if (reconnectTimer) {
-                    clearTimeout(reconnectTimer);
-                    reconnectTimer = null;
-                }
-                connectionStatus.textContent = '⏸️ отключено';
-            }
-
-            function sendMessage() {
-                const text = messageInput.value.trim();
-                if (!text || !ws || ws.readyState !== WebSocket.OPEN) {
-                    if (!currentUser) {
-                        appendMessage('⚠️ Сначала войдите в систему.', true);
-                    } else {
-                        appendMessage('⚠️ Нет подключения к чату.', true);
-                    }
-                    return;
-                }
-                window._lastSent = text;
-                ws.send(text);
-                messageInput.value = '';
-                
-                if (window._echoTimeout) clearTimeout(window._echoTimeout);
-                window._echoTimeout = setTimeout(() => {
-                    if (window._lastSent === text) {
-                        appendMessage('🗣️ Вы (отправлено): ' + text);
-                        window._lastSent = null;
-                    }
-                }, 1500);
-            }
-
-            function loginWithGitHub() {
-                const state = Math.random().toString(36).substring(2, 10);
-                sessionStorage.setItem('gh_oauth_state', state);
-                const params = new URLSearchParams({
-                    client_id: GITHUB_CLIENT_ID,
-                    redirect_uri: REDIRECT_URI,
-                    state: state,
-                    scope: 'read:user',
-                    response_type: 'token',
-                });
-                window.location.href = 'https://github.com/login/oauth/authorize?' + params.toString();
-            }
-
-            function handleOAuthCallback() {
-                const hash = window.location.hash.substring(1);
-                if (!hash) return false;
-                const params = new URLSearchParams(hash);
-                const accessToken = params.get('access_token');
-                const state = params.get('state');
-                const storedState = sessionStorage.getItem('gh_oauth_state');
-                if (!accessToken) return false;
-                if (state !== storedState) {
-                    loginStatus.textContent = '❌ Ошибка проверки состояния. Попробуйте снова.';
-                    return false;
-                }
-                sessionStorage.removeItem('gh_oauth_state');
-                
-                fetch('https://api.github.com/user', {
-                    headers: {
-                        'Authorization': `token ${accessToken}`,
-                        'Accept': 'application/json'
-                    }
-                })
-                .then(res => {
-                    if (!res.ok) throw new Error('Ошибка GitHub API');
-                    return res.json();
-                })
-                .then(user => {
-                    currentUser = {
-                        login: user.login,
-                        name: user.name || user.login,
-                        avatar_url: user.avatar_url,
-                        id: user.id
-                    };
-                    sessionStorage.setItem('gh_user', JSON.stringify(currentUser));
-                    window.history.replaceState(null, '', window.location.pathname);
-                    showChat();
-                    connectWebSocket();
-                    appendMessage(`👋 Добро пожаловать, ${currentUser.name} (${currentUser.login})`, true);
-                    appendMessage('💡 Это публичный эхо-сервер – все сообщения возвращаются только вам.', true);
-                })
-                .catch(err => {
-                    loginStatus.textContent = '❌ Не удалось получить данные пользователя: ' + err.message;
-                    console.error(err);
-                });
-                return true;
-            }
-
-            function showChat() {
-                loginPanel.style.display = 'none';
-                chatPanel.style.display = 'block';
-                if (currentUser) {
-                    userDisplay.textContent = `👤 ${currentUser.login}`;
-                }
-                messageInput.focus();
-            }
-
-            function showLogin() {
-                chatPanel.style.display = 'none';
-                loginPanel.style.display = 'block';
-                disconnectWebSocket();
-                currentUser = null;
-                sessionStorage.removeItem('gh_user');
-                messageArea.innerHTML = '';
-                userDisplay.textContent = '';
-                loginStatus.textContent = '';
-            }
-
-            function logout() {
-                disconnectWebSocket();
-                showLogin();
-                sessionStorage.removeItem('gh_user');
-                window._lastSent = null;
-                if (window._echoTimeout) clearTimeout(window._echoTimeout);
-            }
-
-            function restoreSession() {
-                const stored = sessionStorage.getItem('gh_user');
-                if (stored) {
-                    try {
-                        const user = JSON.parse(stored);
-                        if (user && user.login) {
-                            currentUser = user;
-                            showChat();
-                            connectWebSocket();
-                            appendMessage(`🔁 Сессия восстановлена для ${user.login}`, true);
-                            appendMessage('💡 Публичный эхо-сервер – сообщения зеркалируются обратно.', true);
-                            return true;
-                        }
-                    } catch (e) {}
-                }
+        function handleOAuthCallback() {
+            const hash = window.location.hash.substring(1);
+            if (!hash) return false;
+            
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get('access_token');
+            const state = params.get('state');
+            const storedState = sessionStorage.getItem('gh_oauth_state');
+            
+            if (!accessToken || state !== storedState) {
+                document.getElementById('loginStatus').textContent = '❌ Ошибка авторизации';
                 return false;
             }
+            
+            sessionStorage.removeItem('gh_oauth_state');
+            
+            fetch('https://api.github.com/user', {
+                headers: { 'Authorization': `token ${accessToken}` }
+            })
+            .then(res => res.json())
+            .then(user => {
+                currentUser = {
+                    id: user.id,
+                    login: user.login,
+                    name: user.name || user.login,
+                    avatar: user.avatar_url
+                };
+                
+                sessionStorage.setItem('gh_user', JSON.stringify(currentUser));
+                window.history.replaceState(null, '', window.location.pathname);
+                initApp();
+            })
+            .catch(err => {
+                document.getElementById('loginStatus').textContent = '❌ ' + err.message;
+            });
+            
+            return true;
+        }
 
-            function init() {
-                const handled = handleOAuthCallback();
-                if (handled) return;
+        function restoreSession() {
+            const stored = sessionStorage.getItem('gh_user');
+            if (stored) {
+                try {
+                    currentUser = JSON.parse(stored);
+                    return true;
+                } catch (e) {}
+            }
+            return false;
+        }
 
-                const restored = restoreSession();
-                if (!restored) {
-                    showLogin();
-                }
+        function logout() {
+            sessionStorage.removeItem('gh_user');
+            if (ws) ws.close();
+            location.reload();
+        }
 
-                loginBtn.addEventListener('click', loginWithGitHub);
-                logoutBtn.addEventListener('click', logout);
-                sendBtn.addEventListener('click', sendMessage);
-                messageInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        sendMessage();
+        // ============================================
+        // WEBSOCKET
+        // ============================================
+        function connectWebSocket() {
+            if (!currentUser) return;
+            
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = function() {
+                ws.send(JSON.stringify({
+                    type: 'auth',
+                    userId: String(currentUser.id),
+                    login: currentUser.login,
+                    name: currentUser.name,
+                    avatar: currentUser.avatar
+                }));
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+            
+            ws.onclose = function() {
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            switch (data.type) {
+                case 'auth_success':
+                    allChats = data.chats || [];
+                    allMessages = data.messages || [];
+                    renderChats();
+                    if (allChats.length > 0) {
+                        selectChat(allChats[0].id);
                     }
+                    break;
+                    
+                case 'new_message':
+                    allMessages.push(data.message);
+                    if (currentChatId === data.message.chatId) {
+                        renderMessages();
+                    }
+                    renderChats();
+                    break;
+                    
+                case 'chat_created':
+                    allChats.push(data.chat);
+                    renderChats();
+                    showToast('Чат создан!');
+                    break;
+                    
+                case 'user_online':
+                    showToast(`🔵 ${data.login} онлайн`);
+                    break;
+                    
+                case 'user_offline':
+                    showToast(`🔴 ${data.login} офлайн`);
+                    break;
+                    
+                case 'search_results':
+                    renderSearchResults(data.results);
+                    break;
+            }
+        }
+
+        // ============================================
+        // ОТПРАВКА СООБЩЕНИЙ
+        // ============================================
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text || !currentChatId || !ws) return;
+            
+            ws.send(JSON.stringify({
+                type: 'message',
+                chatId: currentChatId,
+                text: text
+            }));
+            
+            input.value = '';
+        }
+
+        // ============================================
+        // ЧАТЫ
+        // ============================================
+        function renderChats() {
+            const container = document.getElementById('chatsList');
+            if (allChats.length === 0) {
+                container.innerHTML = '<p style="color: #65676b; text-align: center; padding: 20px;">Нет чатов</p>';
+                return;
+            }
+            
+            container.innerHTML = allChats.map(chat => {
+                const lastMsg = allMessages.filter(m => m.chatId === chat.id).pop();
+                const isActive = currentChatId === chat.id;
+                return `
+                    <div class="chat-item ${isActive ? 'active' : ''}" onclick="selectChat('${chat.id}')">
+                        <div class="chat-avatar" style="width: 48px; height: 48px; border-radius: 50%; background: #5865f2; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                            ${chat.name[0].toUpperCase()}
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600;">${chat.name}</div>
+                            <div style="font-size: 13px; color: #65676b;">${lastMsg ? lastMsg.text : 'Нет сообщений'}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectChat(chatId) {
+            currentChatId = chatId;
+            document.getElementById('chatHeader').textContent = allChats.find(c => c.id === chatId)?.name || 'Чат';
+            document.getElementById('messageInput').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            renderMessages();
+            renderChats();
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('messagesContainer');
+            const chatMessages = allMessages.filter(m => m.chatId === currentChatId);
+            
+            if (chatMessages.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #65676b; padding: 40px;">Нет сообщений</div>';
+                return;
+            }
+            
+            container.innerHTML = chatMessages.map(msg => {
+                const isOwn = msg.userId === String(currentUser.id);
+                return `
+                    <div class="message ${isOwn ? 'own' : ''}">
+                        <div class="message-bubble">
+                            <div class="message-sender">${isOwn ? 'Вы' : msg.userId}</div>
+                            ${msg.text}
+                            <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // ============================================
+        // ПОИСК
+        // ============================================
+        function searchUsers(query) {
+            if (!query.trim()) {
+                renderChats();
+                return;
+            }
+            
+            if (ws) {
+                ws.send(JSON.stringify({
+                    type: 'search_users',
+                    query: query
+                }));
+            }
+        }
+
+        function renderSearchResults(results) {
+            const container = document.getElementById('chatsList');
+            container.innerHTML = results.map(user => `
+                <div class="chat-item" onclick="startChatWithUser('${user.id}')">
+                    <div class="chat-avatar" style="width: 48px; height: 48px; border-radius: 50%; background: #5865f2; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                        ${user.login[0].toUpperCase()}
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600;">${user.name || user.login}</div>
+                        <div style="font-size: 13px; color: #65676b;">@${user.login}</div>
+                        <div><span class="online-status ${user.online ? 'online' : 'offline'}"></span>${user.online ? 'Онлайн' : 'Офлайн'}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ============================================
+        // СОЗДАНИЕ ЧАТА
+        // ============================================
+        function createChat() {
+            document.getElementById('createChatModal').classList.add('show');
+            document.getElementById('chatNameInput').value = '';
+            document.getElementById('selectedUsers').innerHTML = '';
+            selectedUsersToAdd = [];
+        }
+
+        function closeModal() {
+            document.getElementById('createChatModal').classList.remove('show');
+        }
+
+        function searchUsersToAdd(query) {
+            if (!query.trim()) {
+                document.getElementById('searchResults').innerHTML = '';
+                return;
+            }
+            
+            // Ищем среди всех пользователей
+            fetch('/api/users')
+                .then(res => res.json())
+                .then(users => {
+                    const results = users.filter(u => 
+                        u.login.toLowerCase().includes(query.toLowerCase()) &&
+                        u.id !== currentUser.id
+                    );
+                    
+                    document.getElementById('searchResults').innerHTML = results.map(u => `
+                        <div class="search-result-item" onclick="addUserToChat('${u.id}', '${u.login}')">
+                            <span>${u.login}</span>
+                            <span class="online-status ${u.online ? 'online' : 'offline'}"></span>
+                        </div>
+                    `).join('');
                 });
+        }
 
-                if (currentUser && (!ws || ws.readyState === WebSocket.CLOSED)) {
-                    connectWebSocket();
-                }
-            }
+        function addUserToChat(userId, login) {
+            if (selectedUsersToAdd.some(u => u.id === userId)) return;
+            selectedUsersToAdd.push({ id: userId, login: login });
+            
+            const container = document.getElementById('selectedUsers');
+            container.innerHTML = selectedUsersToAdd.map(u => `
+                <span style="background: #e7f3ff; padding: 4px 12px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                    ${u.login}
+                    <span onclick="removeUserFromChat('${u.id}')" style="cursor: pointer;">✕</span>
+                </span>
+            `).join('');
+        }
 
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', init);
-            } else {
-                init();
+        function removeUserFromChat(userId) {
+            selectedUsersToAdd = selectedUsersToAdd.filter(u => u.id !== userId);
+            document.getElementById('selectedUsers').innerHTML = selectedUsersToAdd.map(u => `
+                <span style="background: #e7f3ff; padding: 4px 12px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                    ${u.login}
+                    <span onclick="removeUserFromChat('${u.id}')" style="cursor: pointer;">✕</span>
+                </span>
+            `).join('');
+        }
+
+        function createNewChat() {
+            const name = document.getElementById('chatNameInput').value.trim();
+            if (!name) {
+                showToast('Введите название чата');
+                return;
             }
-        })();
+            
+            if (ws) {
+                ws.send(JSON.stringify({
+                    type: 'create_chat',
+                    name: name,
+                    type: 'group',
+                    participants: selectedUsersToAdd.map(u => u.id)
+                }));
+            }
+            
+            closeModal();
+            showToast('Чат создаётся...');
+        }
+
+        function startChatWithUser(userId) {
+            // Проверяем, есть ли уже чат с этим пользователем
+            const existingChat = allChats.find(chat => 
+                chat.participants.includes(String(userId)) && 
+                chat.participants.length === 2 &&
+                chat.participants.includes(String(currentUser.id))
+            );
+            
+            if (existingChat) {
+                selectChat(existingChat.id);
+                return;
+            }
+            
+            // Создаем новый личный чат
+            const name = allUsers.find(u => u.id === userId)?.login || 'Пользователь';
+            if (ws) {
+                ws.send(JSON.stringify({
+                    type: 'create_chat',
+                    name: name,
+                    type: 'private',
+                    participants: [userId]
+                }));
+            }
+        }
+
+        // ============================================
+        // УТИЛИТЫ
+        // ============================================
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // ============================================
+        // ИНИЦИАЛИЗАЦИЯ
+        // ============================================
+        function initApp() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'block';
+            
+            document.getElementById('userAvatar').textContent = currentUser.name[0].toUpperCase();
+            document.getElementById('userName').textContent = currentUser.name;
+            document.getElementById('userLogin').textContent = '@' + currentUser.login;
+            
+            connectWebSocket();
+        }
+
+        // Запуск
+        const handled = handleOAuthCallback();
+        if (!handled && restoreSession()) {
+            initApp();
+        }
+
+        // Enter для отправки
+        document.getElementById('messageInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
     </script>
 </body>
 </html>
